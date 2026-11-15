@@ -49,19 +49,31 @@ impl Verdict {
     }
 }
 
+/// A condition that limits how much a report can be relied on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Warning {
+    /// The scan extracted no events, so there was nothing to check. The
+    /// verdict then says nothing about the device.
+    NoEventsExtracted,
+}
+
 /// A complete scan report.
 ///
 /// A report can only be built from a [`CheckOutcome`], so it always reflects
 /// a check that actually ran against at least one indicator. Fields are
-/// private so that the verdict always matches the detections and the
-/// [`DISCLAIMER`] cannot be removed.
+/// private so that the verdict always matches the detections, the event
+/// count and [`Warning`]s always match the events, and the [`DISCLAIMER`]
+/// cannot be removed.
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
     tool_version: &'static str,
     input: String,
     indicator_count: NonZeroUsize,
+    event_count: usize,
     verdict: Verdict,
     summary: &'static str,
+    warnings: Vec<Warning>,
     disclaimer: &'static str,
     detections: Vec<Detection>,
     events: Vec<TimelineEvent>,
@@ -73,6 +85,10 @@ impl Report {
     /// from its detections.
     pub fn new(input: impl Into<String>, outcome: CheckOutcome) -> Self {
         let (indicator_count, events, detections) = outcome.into_parts();
+        let mut warnings = Vec::new();
+        if events.is_empty() {
+            warnings.push(Warning::NoEventsExtracted);
+        }
         let verdict = if detections.is_empty() {
             Verdict::NoKnownIndicatorsFound
         } else {
@@ -82,8 +98,10 @@ impl Report {
             tool_version: env!("CARGO_PKG_VERSION"),
             input: input.into(),
             indicator_count,
+            event_count: events.len(),
             verdict,
             summary: verdict.summary(),
+            warnings,
             disclaimer: DISCLAIMER,
             detections,
             events,
@@ -98,6 +116,16 @@ impl Report {
     /// Number of indicators the events were checked against.
     pub fn indicator_count(&self) -> NonZeroUsize {
         self.indicator_count
+    }
+
+    /// Number of events extracted and checked.
+    pub fn event_count(&self) -> usize {
+        self.event_count
+    }
+
+    /// Conditions that limit how much the report can be relied on.
+    pub fn warnings(&self) -> &[Warning] {
+        &self.warnings
     }
 
     /// The outcome of the scan.
@@ -177,6 +205,26 @@ mod tests {
         assert_eq!(report.events().len(), 1);
         let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
         assert_eq!(json["indicator_count"], 3);
+    }
+
+    #[test]
+    fn zero_events_are_visible_in_report() {
+        let checked = CheckOutcome::for_test(NonZeroUsize::MIN, Vec::new(), Vec::new());
+        let report = Report::new("backup", checked);
+        assert_eq!(report.event_count(), 0);
+        assert_eq!(report.warnings(), [Warning::NoEventsExtracted]);
+        let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
+        assert_eq!(json["event_count"], 0);
+        assert_eq!(json["warnings"], serde_json::json!(["no_events_extracted"]));
+    }
+
+    #[test]
+    fn events_present_means_no_warning() {
+        let report = Report::new("backup", outcome(Vec::new()));
+        assert_eq!(report.event_count(), 1);
+        assert!(report.warnings().is_empty());
+        let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
+        assert_eq!(json["warnings"], serde_json::json!([]));
     }
 
     #[test]
