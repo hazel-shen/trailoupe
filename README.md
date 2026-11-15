@@ -1,40 +1,46 @@
 # Trailoupe
 
-Trailoupe 是一個在電腦上執行的手機鑑識工具：分析 iPhone 的加密備份與 sysdiagnose 檔案，
-比對公開的惡意指標（STIX2 格式），找出間諜軟體可能留下的痕跡。
+English | [繁體中文](README.zh-TW.md)
 
-本工具只用於使用者檢查**自己的**裝置。
+Trailoupe is a desktop mobile-forensics tool. It analyses encrypted iPhone backups and
+sysdiagnose archives, compares them against public indicators of compromise (STIX2), and
+looks for traces that spyware may have left behind.
 
-> **重要**：Trailoupe 只能告訴你「未發現已知指標」，無法證明裝置是安全的。
-> 指標清單只涵蓋已被公開記錄的威脅，未知或新型的間諜軟體不會被偵測到。
+Trailoupe is intended only for checking **your own** devices.
 
-## 狀態
+> **Important:** Trailoupe can only tell you that *no known indicators were found*. It cannot
+> prove that a device is safe. Indicator lists only cover publicly documented threats; unknown
+> or new spyware will not be detected.
 
-專案目前只有骨架，尚未實作任何實際的解析邏輯。所有子指令都會印出「尚未實作」。
+## Status
 
-## 結構
+The project is currently a skeleton; no real parsing logic is implemented yet. Every
+subcommand prints "not yet implemented" (尚未實作).
 
-| Crate | 類型 | 說明 |
+## Layout
+
+| Crate | Kind | Description |
 | --- | --- | --- |
-| `crates/trailoupe-core` | library | 備份 / sysdiagnose 解析、指標載入、時間軸與報告 |
-| `crates/trailoupe-cli` | binary（`trailoupe`） | 命令列介面 |
+| `crates/trailoupe-core` | library | Backup / sysdiagnose parsing, indicator loading, timeline and reports |
+| `crates/trailoupe-cli` | binary (`trailoupe`) | Command-line interface |
 
-GUI 尚未建立。
+There is no GUI yet.
 
-## 使用
+## Usage
 
 ```sh
-cargo run -p trailoupe-cli -- scan-backup <備份目錄>
+cargo run -p trailoupe-cli -- scan-backup <backup-dir>
 cargo run -p trailoupe-cli -- scan-sysdiagnose <sysdiagnose.tar.gz>
 cargo run -p trailoupe-cli -- update-iocs
 ```
 
-## 指標檔
+## Indicator files
 
-本 repo 不包含任何指標檔（STIX2 等）。指標檔一律在執行時從原始發布來源下載，
-並遵循各來源自己的授權條款。
+This repository does not contain any indicator files (STIX2 or otherwise). Indicator files are
+always downloaded at runtime from their original publishers and are subject to each source's
+own license terms.
 
-## 開發
+## Development
 
 ```sh
 cargo fmt --all -- --check
@@ -42,22 +48,25 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-規則：
+Rules:
 
-- 輸入資料（備份、壓縮檔、指標檔）一律視為不可信：解析時不使用 `unwrap` / `expect`，不使用 `unsafe`。
-  workspace lint 已設定 `unsafe_code = "forbid"`，並對非測試程式碼禁止 `unwrap_used` / `expect_used`。
-- 不要複製或逐行翻譯 MVT（Mobile Verification Toolkit）的程式碼。
-- 任何輸出都不得表示「裝置是安全的」。
+- All input (backups, archives, indicator files) is untrusted: parsing code must not use
+  `unwrap` / `expect` or `unsafe`. The workspace lints set `unsafe_code = "forbid"` and deny
+  `unwrap_used` / `expect_used` outside of tests.
+- Do not copy or translate line by line any code from MVT (Mobile Verification Toolkit).
+- No output may state that a device is safe.
 
-## 授權
+## License
 
-各 crate 採用不同授權：
+The crates are licensed differently:
 
-- **`trailoupe-core`**：MIT 或 Apache-2.0 雙授權（`MIT OR Apache-2.0`），由使用者擇一適用。
-  全文見 [LICENSE-MIT](LICENSE-MIT) 與 [LICENSE-APACHE](LICENSE-APACHE)。
-  寬鬆授權讓其他專案（包括未來的 GUI 或第三方工具）可以自由引用此函式庫。
-- **`trailoupe-cli`**：GNU General Public License v3.0 或更新版本（`GPL-3.0-or-later`）。
-  全文見 [LICENSE-GPL](LICENSE-GPL)。
+- **`trailoupe-core`**: dual-licensed under MIT or Apache-2.0 (`MIT OR Apache-2.0`), at your
+  option. See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE). The permissive
+  license lets other projects (including a future GUI or third-party tools) use the library
+  freely.
+- **`trailoupe-cli`**: GNU General Public License v3.0 or later (`GPL-3.0-or-later`). See
+  [LICENSE-GPL](LICENSE-GPL).
 
-除非另有明確聲明，任何你有意提交以納入本專案的貢獻，都依該檔案所屬 crate 的授權條款授權，
-不附加任何額外條款或條件。
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion
+in this project is licensed under the terms of the crate it belongs to, without any additional
+terms or conditions.
