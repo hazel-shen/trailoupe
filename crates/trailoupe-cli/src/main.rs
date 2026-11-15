@@ -89,8 +89,8 @@ fn build_report(
     // Load first so a missing indicator set fails before a long scan.
     let iocs = IocSet::load_installed()?;
     let events = scan(path)?;
-    let detections = iocs.check(&events)?;
-    Report::new(path.display().to_string(), &iocs, events, detections)
+    let outcome = iocs.check(events)?;
+    Ok(Report::new(path.display().to_string(), outcome))
 }
 
 #[cfg(test)]

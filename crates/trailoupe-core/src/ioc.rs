@@ -3,6 +3,7 @@
 //! Indicator files are never shipped in this repository; they are downloaded
 //! from their original publishers at runtime.
 
+use std::num::NonZeroUsize;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -106,12 +107,88 @@ impl IocSet {
 
     /// Checks timeline events against the loaded indicators.
     ///
-    /// Deliberately returns an error rather than an empty list until it is
-    /// implemented, so a placeholder can never produce a "no indicators
-    /// found" result.
-    pub fn check(&self, events: &[TimelineEvent]) -> Result<Vec<Detection>> {
+    /// This is the only way to obtain a [`CheckOutcome`], which in turn is the
+    /// only way to build a [`Report`](crate::report::Report). Fails with
+    /// [`Error::NoIndicatorsLoaded`] if the set is empty.
+    pub fn check(&self, events: Vec<TimelineEvent>) -> Result<CheckOutcome> {
+        let indicator_count = NonZeroUsize::new(self.len()).ok_or(Error::NoIndicatorsLoaded)?;
+        let detections = self.match_events(&events)?;
+        Ok(CheckOutcome {
+            indicator_count,
+            events,
+            detections,
+        })
+    }
+
+    /// Matches events against the indicators.
+    ///
+    /// TODO: implement. Deliberately returns an error rather than an empty
+    /// list until then, so a placeholder can never produce a "no known
+    /// indicators found" result.
+    fn match_events(&self, events: &[TimelineEvent]) -> Result<Vec<Detection>> {
         let _ = events;
         Err(Error::NotImplemented("ioc::IocSet::check"))
+    }
+}
+
+/// The result of [`IocSet::check`]: the events that were checked, how many
+/// indicators they were checked against, and what matched.
+///
+/// Fields are private and only `IocSet::check` can create a value, so holding
+/// one proves a check against at least one indicator actually ran.
+///
+/// Code outside `IocSet::check` cannot construct one:
+///
+/// ```compile_fail
+/// use std::num::NonZeroUsize;
+/// use trailoupe_core::ioc::CheckOutcome;
+///
+/// let forged = CheckOutcome {
+///     indicator_count: NonZeroUsize::MIN,
+///     events: Vec::new(),
+///     detections: Vec::new(),
+/// };
+/// ```
+#[derive(Debug, Clone)]
+pub struct CheckOutcome {
+    indicator_count: NonZeroUsize,
+    events: Vec<TimelineEvent>,
+    detections: Vec<Detection>,
+}
+
+impl CheckOutcome {
+    /// Builds an outcome directly, for tests.
+    #[cfg(test)]
+    pub(crate) fn for_test(
+        indicator_count: NonZeroUsize,
+        events: Vec<TimelineEvent>,
+        detections: Vec<Detection>,
+    ) -> Self {
+        Self {
+            indicator_count,
+            events,
+            detections,
+        }
+    }
+
+    /// Number of indicators the events were checked against.
+    pub fn indicator_count(&self) -> NonZeroUsize {
+        self.indicator_count
+    }
+
+    /// The events that were checked.
+    pub fn events(&self) -> &[TimelineEvent] {
+        &self.events
+    }
+
+    /// Events that matched an indicator.
+    pub fn detections(&self) -> &[Detection] {
+        &self.detections
+    }
+
+    /// Splits the outcome into its parts.
+    pub(crate) fn into_parts(self) -> (NonZeroUsize, Vec<TimelineEvent>, Vec<Detection>) {
+        (self.indicator_count, self.events, self.detections)
     }
 }
 
@@ -134,9 +211,30 @@ mod tests {
         assert_eq!(set.len(), 0);
     }
 
+    fn indicator() -> Indicator {
+        Indicator {
+            kind: IndicatorKind::Domain,
+            value: "example.invalid".into(),
+            name: None,
+            origin: "test".into(),
+        }
+    }
+
+    #[test]
+    fn check_rejects_empty_set() {
+        let set = IocSet::new();
+        assert!(matches!(
+            set.check(Vec::new()),
+            Err(Error::NoIndicatorsLoaded)
+        ));
+    }
+
     #[test]
     fn check_never_silently_reports_nothing() {
-        let set = IocSet::new();
-        assert!(matches!(set.check(&[]), Err(Error::NotImplemented(_))));
+        let set = IocSet::from_indicators(vec![indicator()]);
+        assert!(matches!(
+            set.check(Vec::new()),
+            Err(Error::NotImplemented(_))
+        ));
     }
 }
