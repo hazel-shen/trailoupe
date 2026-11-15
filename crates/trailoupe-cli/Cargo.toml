@@ -1,0 +1,18 @@
+[package]
+name = "trailoupe-cli"
+description = "Command-line interface for Trailoupe"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "trailoupe"
+path = "src/main.rs"
+
+[dependencies]
+trailoupe-core.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

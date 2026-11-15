@@ -1,0 +1,18 @@
+[package]
+name = "trailoupe-core"
+description = "Core library for Trailoupe: iOS backup and sysdiagnose analysis against public STIX2 indicators"
+license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusqlite.workspace = true
+plist.workspace = true
+tar.workspace = true
+flate2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

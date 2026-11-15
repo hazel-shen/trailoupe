@@ -1,0 +1,19 @@
+/target/
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Indicator files are downloaded at runtime and must never be committed.
+/iocs/
+*.stix2
+*.stix2.json
+
+# Device data (backups, sysdiagnose archives, reports) must never be committed.
+*.tar.gz
+/reports/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
