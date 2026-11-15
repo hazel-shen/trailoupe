@@ -56,6 +56,12 @@ impl IocSet {
         Self::default()
     }
 
+    /// Builds a set directly from indicators, for tests.
+    #[cfg(test)]
+    pub(crate) fn from_indicators(indicators: Vec<Indicator>) -> Self {
+        Self { indicators }
+    }
+
     /// Number of loaded indicators.
     pub fn len(&self) -> usize {
         self.indicators.len()
@@ -69,6 +75,15 @@ impl IocSet {
     /// The loaded indicators.
     pub fn indicators(&self) -> &[Indicator] {
         &self.indicators
+    }
+
+    /// Loads all indicator files previously downloaded by
+    /// [`update_indicators`].
+    ///
+    /// TODO: decide the storage directory (shared with `update_indicators`)
+    /// and load every STIX2 file in it with [`IocSet::load_stix2_file`].
+    pub fn load_installed() -> Result<Self> {
+        Err(Error::NotImplemented("ioc::IocSet::load_installed"))
     }
 
     /// Loads a STIX2 bundle from a file and adds its indicators.

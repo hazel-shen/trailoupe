@@ -33,6 +33,10 @@ pub enum Error {
     #[error("encrypted backups are not supported yet")]
     EncryptedBackup,
 
+    /// No indicators are loaded, so a scan result would be meaningless.
+    #[error("no indicators loaded; cannot check for known indicators")]
+    NoIndicatorsLoaded,
+
     /// The requested functionality is a placeholder.
     #[error("not implemented: {0}")]
     NotImplemented(&'static str),

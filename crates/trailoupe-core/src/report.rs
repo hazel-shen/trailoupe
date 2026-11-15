@@ -8,8 +8,8 @@ use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::Result;
-use crate::ioc::Indicator;
+use crate::error::{Error, Result};
+use crate::ioc::{Indicator, IocSet};
 use crate::timeline::TimelineEvent;
 
 /// Statement included in every report, whatever the verdict.
@@ -50,12 +50,14 @@ impl Verdict {
 
 /// A complete scan report.
 ///
-/// Fields are private so that the verdict always reflects the detections and
-/// the [`DISCLAIMER`] cannot be removed.
+/// Fields are private so that the verdict always reflects the detections,
+/// the indicator count reflects what was actually loaded, and the
+/// [`DISCLAIMER`] cannot be removed.
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
     tool_version: &'static str,
     input: String,
+    indicator_count: usize,
     verdict: Verdict,
     summary: &'static str,
     disclaimer: &'static str,
@@ -65,30 +67,44 @@ pub struct Report {
 
 impl Report {
     /// Builds a report; the verdict is derived from `detections`.
+    ///
+    /// `iocs` is the set the events were checked against. Fails with
+    /// [`Error::NoIndicatorsLoaded`] if it is empty, because "no known
+    /// indicators found" would then be meaningless.
     pub fn new(
         input: impl Into<String>,
+        iocs: &IocSet,
         events: Vec<TimelineEvent>,
         detections: Vec<Detection>,
-    ) -> Self {
+    ) -> Result<Self> {
+        if iocs.is_empty() {
+            return Err(Error::NoIndicatorsLoaded);
+        }
         let verdict = if detections.is_empty() {
             Verdict::NoKnownIndicatorsFound
         } else {
             Verdict::KnownIndicatorsFound
         };
-        Self {
+        Ok(Self {
             tool_version: env!("CARGO_PKG_VERSION"),
             input: input.into(),
+            indicator_count: iocs.len(),
             verdict,
             summary: verdict.summary(),
             disclaimer: DISCLAIMER,
             detections,
             events,
-        }
+        })
     }
 
     /// Description of what was scanned (e.g. the input path).
     pub fn input(&self) -> &str {
         &self.input
+    }
+
+    /// Number of indicators the events were checked against.
+    pub fn indicator_count(&self) -> usize {
+        self.indicator_count
     }
 
     /// The outcome of the scan.
@@ -124,21 +140,29 @@ mod tests {
     use crate::ioc::IndicatorKind;
     use crate::timeline::EventSource;
 
+    fn indicator() -> Indicator {
+        Indicator {
+            kind: IndicatorKind::Domain,
+            value: "example.invalid".into(),
+            name: None,
+            origin: "test".into(),
+        }
+    }
+
+    fn iocs() -> IocSet {
+        IocSet::from_indicators(vec![indicator()])
+    }
+
     fn detection() -> Detection {
         Detection {
-            indicator: Indicator {
-                kind: IndicatorKind::Domain,
-                value: "example.invalid".into(),
-                name: None,
-                origin: "test".into(),
-            },
+            indicator: indicator(),
             event: TimelineEvent::new(None, EventSource::Backup, "visited example.invalid"),
         }
     }
 
     #[test]
     fn empty_report_never_claims_safety() {
-        let report = Report::new("backup", Vec::new(), Vec::new());
+        let report = Report::new("backup", &iocs(), Vec::new(), Vec::new()).unwrap();
         assert_eq!(report.verdict(), Verdict::NoKnownIndicatorsFound);
         let json = report.to_json().unwrap().to_lowercase();
         assert!(json.contains("no_known_indicators_found"));
@@ -149,14 +173,31 @@ mod tests {
 
     #[test]
     fn detections_set_verdict() {
-        let report = Report::new("backup", Vec::new(), vec![detection()]);
+        let report = Report::new("backup", &iocs(), Vec::new(), vec![detection()]).unwrap();
         assert_eq!(report.verdict(), Verdict::KnownIndicatorsFound);
+    }
+
+    #[test]
+    fn zero_indicators_never_yields_no_known_indicators_found() {
+        let empty = IocSet::new();
+        let result = Report::new("backup", &empty, Vec::new(), Vec::new());
+        assert!(matches!(result, Err(Error::NoIndicatorsLoaded)));
+        let result = Report::new("backup", &empty, Vec::new(), vec![detection()]);
+        assert!(matches!(result, Err(Error::NoIndicatorsLoaded)));
+    }
+
+    #[test]
+    fn records_indicator_count() {
+        let report = Report::new("backup", &iocs(), Vec::new(), Vec::new()).unwrap();
+        assert_eq!(report.indicator_count(), 1);
+        let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
+        assert_eq!(json["indicator_count"], 1);
     }
 
     #[test]
     fn every_report_carries_disclaimer() {
         for detections in [Vec::new(), vec![detection()]] {
-            let report = Report::new("backup", Vec::new(), detections);
+            let report = Report::new("backup", &iocs(), Vec::new(), detections).unwrap();
             let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
             assert_eq!(json["disclaimer"], DISCLAIMER);
         }

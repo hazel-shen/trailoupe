@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
+use trailoupe_core::ioc::IocSet;
 use trailoupe_core::report::Report;
 use trailoupe_core::timeline::TimelineEvent;
 use trailoupe_core::{Error, backup, ioc, sysdiagnose};
@@ -57,20 +58,29 @@ fn run_scan(
     path: &Path,
     scan: fn(&Path) -> trailoupe_core::Result<Vec<TimelineEvent>>,
 ) -> anyhow::Result<()> {
-    let events = match scan(path) {
-        Ok(events) => events,
+    let report = match build_report(path, scan) {
+        Ok(report) => report,
         Err(Error::NotImplemented(_)) => {
             println!("尚未實作");
             return Ok(());
         }
         Err(e) => return Err(e).with_context(|| format!("failed to scan {}", path.display())),
     };
-
-    // TODO: load indicators and run `IocSet::check` to obtain detections.
-    let report = Report::new(path.display().to_string(), events, Vec::new());
     report.write_json(std::io::stdout().lock())?;
     println!();
     Ok(())
+}
+
+/// Loads the indicators, scans `path` and checks the events against them.
+fn build_report(
+    path: &Path,
+    scan: fn(&Path) -> trailoupe_core::Result<Vec<TimelineEvent>>,
+) -> trailoupe_core::Result<Report> {
+    // Load first so a missing indicator set fails before a long scan.
+    let iocs = IocSet::load_installed()?;
+    let events = scan(path)?;
+    let detections = iocs.check(&events)?;
+    Report::new(path.display().to_string(), &iocs, events, detections)
 }
 
 #[cfg(test)]
