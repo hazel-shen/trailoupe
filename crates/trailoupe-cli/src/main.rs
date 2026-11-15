@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -39,18 +40,24 @@ enum Command {
     UpdateIocs,
 }
 
-fn main() -> anyhow::Result<()> {
-    match Cli::parse().command {
+fn main() -> ExitCode {
+    match run(Cli::parse().command) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            match not_implemented(&err) {
+                Some(feature) => eprintln!("尚未實作：{feature}"),
+                None => eprintln!("錯誤：{err:#}"),
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(command: Command) -> anyhow::Result<()> {
+    match command {
         Command::ScanBackup { path } => run_scan(&path, backup::scan),
         Command::ScanSysdiagnose { path } => run_scan(&path, sysdiagnose::scan),
-        Command::UpdateIocs => match ioc::update_indicators() {
-            Ok(()) => Ok(()),
-            Err(Error::NotImplemented(_)) => {
-                println!("尚未實作");
-                Ok(())
-            }
-            Err(e) => Err(e).context("failed to update indicators"),
-        },
+        Command::UpdateIocs => ioc::update_indicators().context("failed to update indicators"),
     }
 }
 
@@ -58,17 +65,20 @@ fn run_scan(
     path: &Path,
     scan: fn(&Path) -> trailoupe_core::Result<Vec<TimelineEvent>>,
 ) -> anyhow::Result<()> {
-    let report = match build_report(path, scan) {
-        Ok(report) => report,
-        Err(Error::NotImplemented(_)) => {
-            println!("尚未實作");
-            return Ok(());
-        }
-        Err(e) => return Err(e).with_context(|| format!("failed to scan {}", path.display())),
-    };
+    let report =
+        build_report(path, scan).with_context(|| format!("failed to scan {}", path.display()))?;
     report.write_json(std::io::stdout().lock())?;
     println!();
     Ok(())
+}
+
+/// Returns the feature name if `err` was caused by a placeholder.
+fn not_implemented(err: &anyhow::Error) -> Option<&'static str> {
+    err.chain()
+        .find_map(|cause| match cause.downcast_ref::<Error>() {
+            Some(Error::NotImplemented(feature)) => Some(*feature),
+            _ => None,
+        })
 }
 
 /// Loads the indicators, scans `path` and checks the events against them.
@@ -105,5 +115,17 @@ mod tests {
     fn parses_update_iocs() {
         let cli = Cli::try_parse_from(["trailoupe", "update-iocs"]).unwrap();
         assert!(matches!(cli.command, Command::UpdateIocs));
+    }
+
+    #[test]
+    fn detects_not_implemented_through_context() {
+        let err = anyhow::Error::from(Error::NotImplemented("backup::scan")).context("failed");
+        assert_eq!(not_implemented(&err), Some("backup::scan"));
+    }
+
+    #[test]
+    fn other_errors_are_not_reported_as_not_implemented() {
+        let err = anyhow::Error::from(Error::NoIndicatorsLoaded).context("failed");
+        assert_eq!(not_implemented(&err), None);
     }
 }
