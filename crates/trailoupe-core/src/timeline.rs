@@ -14,7 +14,9 @@ pub struct Timestamp(pub i64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventSource {
+    /// An iOS backup.
     Backup,
+    /// A sysdiagnose archive.
     Sysdiagnose,
 }
 
@@ -23,11 +25,14 @@ pub enum EventSource {
 pub struct TimelineEvent {
     /// When the event happened, if the source records it.
     pub timestamp: Option<Timestamp>,
+    /// Where the event was extracted from.
     pub source: EventSource,
+    /// Human-readable description of the event.
     pub description: String,
 }
 
 impl TimelineEvent {
+    /// Creates an event.
     pub fn new(
         timestamp: Option<Timestamp>,
         source: EventSource,

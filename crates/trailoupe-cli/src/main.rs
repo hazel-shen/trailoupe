@@ -1,6 +1,7 @@
-// Trailoupe command-line interface.
 // Copyright (C) 2026 Trailoupe contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+//! Trailoupe command-line interface.
 
 #![forbid(unsafe_code)]
 

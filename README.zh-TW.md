@@ -38,16 +38,25 @@ cargo run -p trailoupe-cli -- update-iocs
 
 ## 開發
 
+Rust 版本固定在 `rust-toolchain.toml`（rustup 會自動套用）。
+
 ```sh
+cargo build --locked
+cargo test --workspace --locked
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo audit
+cargo deny check
 ```
+
+`cargo audit` 與 `cargo deny` 以 `cargo install --locked cargo-audit cargo-deny` 安裝。
+`deny.toml` 只允許寬鬆授權（另對 `trailoupe-cli` 本身例外允許 GPL-3.0-or-later），且只允許 crates.io。
 
 規則：
 
-- 輸入資料（備份、壓縮檔、指標檔）一律視為不可信：解析時不使用 `unwrap` / `expect`，不使用 `unsafe`。
-  workspace lint 已設定 `unsafe_code = "forbid"`，並對非測試程式碼禁止 `unwrap_used` / `expect_used`。
+- 輸入資料（備份、壓縮檔、指標檔）一律視為不可信：解析時不使用 `unwrap` / `expect` / `panic!`、
+  不直接索引陣列，不使用 `unsafe`。workspace lint 已設定 `unsafe_code = "forbid"`，並對非測試程式碼禁止
+  `unwrap_used` / `expect_used` / `panic` / `indexing_slicing`（測試例外設定於 `clippy.toml`）。
 - 不要複製或逐行翻譯 MVT（Mobile Verification Toolkit）的程式碼。
 - 任何輸出都不得表示「裝置是安全的」。
 

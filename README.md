@@ -42,17 +42,27 @@ own license terms.
 
 ## Development
 
+The Rust version is pinned in `rust-toolchain.toml` (picked up automatically by rustup).
+
 ```sh
+cargo build --locked
+cargo test --workspace --locked
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo audit
+cargo deny check
 ```
+
+`cargo audit` and `cargo deny` are installed with
+`cargo install --locked cargo-audit cargo-deny`. `deny.toml` allows only permissive licenses
+(plus GPL-3.0-or-later for `trailoupe-cli` itself) and only the crates.io registry.
 
 Rules:
 
 - All input (backups, archives, indicator files) is untrusted: parsing code must not use
-  `unwrap` / `expect` or `unsafe`. The workspace lints set `unsafe_code = "forbid"` and deny
-  `unwrap_used` / `expect_used` outside of tests.
+  `unwrap` / `expect` / `panic!`, direct indexing, or `unsafe`. The workspace lints set
+  `unsafe_code = "forbid"` and deny `unwrap_used` / `expect_used` / `panic` /
+  `indexing_slicing` outside of tests (exempted via `clippy.toml`).
 - Do not copy or translate line by line any code from MVT (Mobile Verification Toolkit).
 - No output may state that a device is safe.
 

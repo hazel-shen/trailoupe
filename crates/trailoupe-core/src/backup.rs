@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use crate::error::{Error, Result};
 use crate::timeline::TimelineEvent;
 
+/// File name of the SQLite index of backed-up files.
 pub const MANIFEST_DB: &str = "Manifest.db";
+/// File name of the backup metadata property list.
 pub const MANIFEST_PLIST: &str = "Manifest.plist";
 
 /// One row of the `Files` table in `Manifest.db`.
@@ -17,8 +19,11 @@ pub const MANIFEST_PLIST: &str = "Manifest.plist";
 pub struct BackupFile {
     /// SHA-1 based file ID; the file is stored at `<root>/<id[0..2]>/<id>`.
     pub file_id: String,
+    /// Backup domain, e.g. `HomeDomain` or `AppDomain-<bundle id>`.
     pub domain: String,
+    /// Path of the file relative to its domain. Untrusted.
     pub relative_path: String,
+    /// Entry type flags (file, directory, symlink).
     pub flags: i64,
 }
 
@@ -43,10 +48,12 @@ impl Backup {
         Ok(Self { root })
     }
 
+    /// The backup directory.
     pub fn root(&self) -> &Path {
         &self.root
     }
 
+    /// Path of `Manifest.db` inside the backup directory.
     pub fn manifest_db_path(&self) -> PathBuf {
         self.root.join(MANIFEST_DB)
     }

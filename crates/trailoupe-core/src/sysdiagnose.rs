@@ -18,7 +18,9 @@ use crate::timeline::{TimelineEvent, Timestamp};
 pub struct ShutdownLogEntry {
     /// Time of the shutdown the entry belongs to, if known.
     pub timestamp: Option<Timestamp>,
+    /// Process ID, if present on the line.
     pub pid: Option<u32>,
+    /// Executable path of the process that was still running.
     pub process_path: String,
 }
 

@@ -12,10 +12,17 @@ use crate::error::Result;
 use crate::ioc::Indicator;
 use crate::timeline::TimelineEvent;
 
+/// Statement included in every report, whatever the verdict.
+pub const DISCLAIMER: &str = "Public indicators cannot prove that a device has not been \
+     compromised. Spyware that is unknown or not covered by the loaded indicators will not \
+     be detected.";
+
 /// A timeline event that matched an indicator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Detection {
+    /// The indicator that matched.
     pub indicator: Indicator,
+    /// The event it matched.
     pub event: TimelineEvent,
 }
 
@@ -23,7 +30,9 @@ pub struct Detection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
+    /// None of the loaded indicators matched.
     NoKnownIndicatorsFound,
+    /// At least one loaded indicator matched.
     KnownIndicatorsFound,
 }
 
@@ -31,9 +40,7 @@ impl Verdict {
     /// Human-readable summary of the verdict.
     pub fn summary(self) -> &'static str {
         match self {
-            Verdict::NoKnownIndicatorsFound => {
-                "No known indicators were found. This does not mean the device is free of spyware."
-            }
+            Verdict::NoKnownIndicatorsFound => "No known indicators were found.",
             Verdict::KnownIndicatorsFound => {
                 "Matches with known indicators were found. Review the detections below."
             }
@@ -42,15 +49,18 @@ impl Verdict {
 }
 
 /// A complete scan report.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// Fields are private so that the verdict always reflects the detections and
+/// the [`DISCLAIMER`] cannot be removed.
+#[derive(Debug, Clone, Serialize)]
 pub struct Report {
-    pub tool_version: String,
-    /// Description of what was scanned (e.g. the input path).
-    pub input: String,
-    pub verdict: Verdict,
-    pub summary: String,
-    pub detections: Vec<Detection>,
-    pub events: Vec<TimelineEvent>,
+    tool_version: &'static str,
+    input: String,
+    verdict: Verdict,
+    summary: &'static str,
+    disclaimer: &'static str,
+    detections: Vec<Detection>,
+    events: Vec<TimelineEvent>,
 }
 
 impl Report {
@@ -66,19 +76,42 @@ impl Report {
             Verdict::KnownIndicatorsFound
         };
         Self {
-            tool_version: env!("CARGO_PKG_VERSION").to_owned(),
+            tool_version: env!("CARGO_PKG_VERSION"),
             input: input.into(),
             verdict,
-            summary: verdict.summary().to_owned(),
+            summary: verdict.summary(),
+            disclaimer: DISCLAIMER,
             detections,
             events,
         }
     }
 
+    /// Description of what was scanned (e.g. the input path).
+    pub fn input(&self) -> &str {
+        &self.input
+    }
+
+    /// The outcome of the scan.
+    pub fn verdict(&self) -> Verdict {
+        self.verdict
+    }
+
+    /// Events that matched an indicator.
+    pub fn detections(&self) -> &[Detection] {
+        &self.detections
+    }
+
+    /// All extracted events.
+    pub fn events(&self) -> &[TimelineEvent] {
+        &self.events
+    }
+
+    /// Serializes the report as pretty-printed JSON.
     pub fn to_json(&self) -> Result<String> {
         Ok(serde_json::to_string_pretty(self)?)
     }
 
+    /// Writes the report as pretty-printed JSON.
     pub fn write_json<W: Write>(&self, writer: W) -> Result<()> {
         serde_json::to_writer_pretty(writer, self)?;
         Ok(())
@@ -91,10 +124,22 @@ mod tests {
     use crate::ioc::IndicatorKind;
     use crate::timeline::EventSource;
 
+    fn detection() -> Detection {
+        Detection {
+            indicator: Indicator {
+                kind: IndicatorKind::Domain,
+                value: "example.invalid".into(),
+                name: None,
+                origin: "test".into(),
+            },
+            event: TimelineEvent::new(None, EventSource::Backup, "visited example.invalid"),
+        }
+    }
+
     #[test]
     fn empty_report_never_claims_safety() {
         let report = Report::new("backup", Vec::new(), Vec::new());
-        assert_eq!(report.verdict, Verdict::NoKnownIndicatorsFound);
+        assert_eq!(report.verdict(), Verdict::NoKnownIndicatorsFound);
         let json = report.to_json().unwrap().to_lowercase();
         assert!(json.contains("no_known_indicators_found"));
         for word in ["\"safe\"", "is safe", "clean"] {
@@ -104,16 +149,16 @@ mod tests {
 
     #[test]
     fn detections_set_verdict() {
-        let detection = Detection {
-            indicator: Indicator {
-                kind: IndicatorKind::Domain,
-                value: "example.invalid".into(),
-                name: None,
-                origin: "test".into(),
-            },
-            event: TimelineEvent::new(None, EventSource::Backup, "visited example.invalid"),
-        };
-        let report = Report::new("backup", Vec::new(), vec![detection]);
-        assert_eq!(report.verdict, Verdict::KnownIndicatorsFound);
+        let report = Report::new("backup", Vec::new(), vec![detection()]);
+        assert_eq!(report.verdict(), Verdict::KnownIndicatorsFound);
+    }
+
+    #[test]
+    fn every_report_carries_disclaimer() {
+        for detections in [Vec::new(), vec![detection()]] {
+            let report = Report::new("backup", Vec::new(), detections);
+            let json: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
+            assert_eq!(json["disclaimer"], DISCLAIMER);
+        }
     }
 }

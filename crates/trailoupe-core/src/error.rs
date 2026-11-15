@@ -5,15 +5,19 @@ use std::path::PathBuf;
 /// Errors produced by `trailoupe-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Reading or opening a file failed.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// An SQLite database (e.g. `Manifest.db`) could not be read.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
+    /// A property list could not be parsed.
     #[error("plist error: {0}")]
     Plist(#[from] plist::Error),
 
+    /// JSON could not be parsed or serialized.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 

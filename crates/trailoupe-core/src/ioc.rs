@@ -15,19 +15,28 @@ use crate::timeline::TimelineEvent;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IndicatorKind {
+    /// A domain name.
     Domain,
+    /// A full URL.
     Url,
+    /// An IPv4 or IPv6 address.
     IpAddress,
+    /// A process name.
     ProcessName,
+    /// A file system path.
     FilePath,
+    /// An e-mail address.
     Email,
+    /// An app bundle identifier.
     AppId,
 }
 
 /// A single indicator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Indicator {
+    /// What kind of observable `value` is.
     pub kind: IndicatorKind,
+    /// The observable to look for.
     pub value: String,
     /// Name of the campaign / malware this indicator belongs to.
     pub name: Option<String>,
@@ -42,18 +51,22 @@ pub struct IocSet {
 }
 
 impl IocSet {
+    /// Creates an empty set.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Number of loaded indicators.
     pub fn len(&self) -> usize {
         self.indicators.len()
     }
 
+    /// Returns `true` if no indicators are loaded.
     pub fn is_empty(&self) -> bool {
         self.indicators.is_empty()
     }
 
+    /// The loaded indicators.
     pub fn indicators(&self) -> &[Indicator] {
         &self.indicators
     }
